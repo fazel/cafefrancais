@@ -1,0 +1,134 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// --- Enums (لیست مقادیر ثابت) ---
+enum Role {
+  STUDENT
+  TEACHER
+  ADMIN
+}
+
+enum FrenchLevel {
+  A1
+  A2
+  B1
+  B2
+  C1
+  C2
+}
+
+enum ClassType {
+  ONLINE
+  IN_PERSON
+}
+
+enum ClassStatus {
+  OPEN
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum EnrollmentStatus {
+  PENDING_PAYMENT
+  ACTIVE
+  DROPPED
+}
+
+enum TicketType {
+  PAYMENT_RECEIPT
+  SUPPORT
+  HOMEWORK
+}
+
+enum TicketStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// --- Models (جداول دیتابیس) ---
+
+model User {
+  id          String       @id @default(uuid())
+  phoneNumber String       @unique
+  firstName   String?
+  lastName    String?
+  role        Role         @default(STUDENT)
+  frenchLevel FrenchLevel?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  // روابط (Relations)
+  teachingClasses Class[]          @relation("TeacherClasses")
+  enrollments     Enrollment[]
+  tickets         Ticket[]
+  teacherSlots    EvaluationSlot[] @relation("TeacherSlots")
+  studentSlots    EvaluationSlot[] @relation("StudentSlots")
+}
+
+model EvaluationSlot {
+  id        String   @id @default(uuid())
+  teacherId String
+  studentId String?
+  startTime DateTime
+  endTime   DateTime
+  isBooked  Boolean  @default(false)
+
+  // روابط
+  teacher User  @relation("TeacherSlots", fields: [teacherId], references: [id])
+  student User? @relation("StudentSlots", fields: [studentId], references: [id])
+}
+
+model Class {
+  id        String      @id @default(uuid())
+  title     String
+  level     FrenchLevel
+  type      ClassType
+  capacity  Int
+  price     Int // مبلغ به تومان
+  status    ClassStatus @default(OPEN)
+  teacherId String
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  // روابط
+  teacher     User         @relation("TeacherClasses", fields: [teacherId], references: [id])
+  enrollments Enrollment[]
+}
+
+model Enrollment {
+  id        String           @id @default(uuid())
+  studentId String
+  classId   String
+  status    EnrollmentStatus @default(PENDING_PAYMENT)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  // روابط
+  student User     @relation(fields: [studentId], references: [id])
+  class   Class    @relation(fields: [classId], references: [id])
+  tickets Ticket[] // فیش‌های واریزی یا تکالیف مربوط به این کلاس
+}
+
+model Ticket {
+  id                  String       @id @default(uuid())
+  type                TicketType
+  filePath            String? // مسیر فایل در RustFS
+  message             String?
+  adminReply          String?
+  status              TicketStatus @default(PENDING)
+  userId              String
+  relatedEnrollmentId String?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  // روابط
+  user              User        @relation(fields: [userId], references: [id])
+  relatedEnrollment Enrollment? @relation(fields: [relatedEnrollmentId], references: [id])
+}

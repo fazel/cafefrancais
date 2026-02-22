@@ -1,0 +1,20 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  @font-face {
+    font-family: "Vazirmatn";
+    src: url("https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/fonts/webfonts/Vazirmatn-Regular.woff2")
+      format("woff2");
+  }
+
+  * {
+    font-family: "Vazirmatn", sans-serif !important;
+  }
+
+  body {
+    direction: rtl;
+    @apply bg-gray-50 text-gray-900;
+  }
+}
