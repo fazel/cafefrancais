@@ -1,38 +1,32 @@
-// مسیر: backend/src/routes/userRoutes.js
 import { PrismaClient } from "@prisma/client";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 
 const prisma = new PrismaClient();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const uploadDir = path.join(__dirname, "../../uploads"); // مسیر پوشه آپلود
 
 export default async function userRoutes(fastify, options) {
-  // روت ثبت‌نام زبان‌آموز جدید
+  // ۱. ثبت‌نام
   fastify.post("/register", async (request, reply) => {
     const { firstName, lastName, phoneNumber } = request.body;
-
     try {
-      // ۱. بررسی اینکه آیا این شماره موبایل قبلاً در کافه فرانسوی ثبت شده؟
       const existingUser = await prisma.user.findUnique({
         where: { phoneNumber },
       });
-
       if (existingUser) {
         return reply
           .status(400)
-          .send({ message: "این شماره موبایل قبلاً در سیستم ثبت شده است. 🛑" });
+          .send({ message: "این شماره قبلاً ثبت شده است. 🛑" });
       }
-
-      // ۲. ساخت کاربر جدید در دیتابیس PostgreSQL
-      // نقش (Role) به صورت خودکار روی STUDENT تنظیم می‌شود (طبق اسکیما)
       const newUser = await prisma.user.create({
-        data: {
-          firstName,
-          lastName,
-          phoneNumber,
-        },
+        data: { firstName, lastName, phoneNumber, role: "STUDENT" },
       });
-
       return reply.send({
         status: "success",
-        message: "ثبت‌نام با موفقیت انجام شد! 🇫🇷",
+        message: "ثبت‌نام موفقیت‌آمیز بود! 🇫🇷",
         user: {
           id: newUser.id,
           firstName: newUser.firstName,
@@ -40,53 +34,95 @@ export default async function userRoutes(fastify, options) {
         },
       });
     } catch (error) {
-      fastify.log.error(error);
-      return reply
-        .status(500)
-        .send({ message: "خطا در ذخیره اطلاعات در دیتابیس." });
+      return reply.status(500).send({ message: "خطا در دیتابیس." });
     }
   });
 
+  // ۲. ورود زبان‌آموز
   fastify.post("/login", async (request, reply) => {
     const { phoneNumber } = request.body;
-
     try {
-      // ۱. بررسی اینکه آیا کاربر در دیتابیس وجود دارد؟
-      const user = await prisma.user.findUnique({
-        where: { phoneNumber },
-      });
+      const user = await prisma.user.findUnique({ where: { phoneNumber } });
+      if (!user) return reply.status(404).send({ message: "کاربری یافت نشد." });
+      if (user.role !== "STUDENT")
+        return reply.status(403).send({ message: "از بخش مدرسین وارد شوید." });
 
-      if (!user) {
-        return reply
-          .status(404)
-          .send({
-            message:
-              "کاربری با این شماره یافت نشد. لطفاً ابتدا ثبت‌نام کنید. 🛑",
-          });
-      }
-
-      // ۲. تولید کلید دیجیتال (توکن JWT)
-      // اطلاعات مهم مثل آیدی و نقش (Role) را داخل توکن مهر و موم می‌کنیم
       const token = fastify.jwt.sign({
         id: user.id,
         role: user.role,
         phone: user.phoneNumber,
       });
-
-      // ۳. ارسال توکن و اطلاعات اولیه به فرانت‌اِند
       return reply.send({
         status: "success",
-        message: "ورود موفقیت‌آمیز بود! 🚀",
-        token: token,
-        user: {
-          firstName: user.firstName,
-          lastName: user.lastName,
-          role: user.role,
-        },
+        token,
+        user: { firstName: user.firstName, role: user.role },
       });
     } catch (error) {
-      fastify.log.error(error);
-      return reply.status(500).send({ message: "خطا در ارتباط با دیتابیس." });
+      return reply.status(500).send({ message: "خطا در سرور." });
     }
   });
+
+  // ۳. ورود مدرس
+  fastify.post("/teacher-login", async (request, reply) => {
+    const { phoneNumber } = request.body;
+    try {
+      const user = await prisma.user.findUnique({ where: { phoneNumber } });
+      if (!user || user.role === "STUDENT")
+        return reply.status(403).send({ message: "دسترسی غیرمجاز." });
+
+      const token = fastify.jwt.sign({
+        id: user.id,
+        role: user.role,
+        phone: user.phoneNumber,
+      });
+      return reply.send({
+        status: "success",
+        token,
+        user: { firstName: user.firstName, role: user.role },
+      });
+    } catch (error) {
+      return reply.status(500).send({ message: "خطای سرور." });
+    }
+  });
+
+  // ۴. دریافت اطلاعات پروفایل (فیکس شده)
+  fastify.get(
+    "/me",
+    { onRequest: [fastify.authenticate] },
+    async (request, reply) => {
+      try {
+        const user = await prisma.user.findUnique({
+          where: { id: request.user.id },
+          include: { studentSlots: { where: { isBooked: true } } },
+        });
+        return reply.send({ user });
+      } catch (err) {
+        return reply.status(500).send({ message: "خطا در دریافت پروفایل" });
+      }
+    },
+  );
+
+  // ۵. روت آپلود فیش (منتقل شده به اینجا برای نظم بیشتر)
+  fastify.post(
+    "/upload-receipt",
+    { onRequest: [fastify.authenticate] },
+    async (request, reply) => {
+      const data = await request.file();
+      if (!data) return reply.status(400).send({ message: "فایلی ارسال نشده" });
+
+      const fileName = `${Date.now()}-${data.filename}`;
+      const filePath = path.join(uploadDir, fileName);
+      const out = fs.createWriteStream(filePath);
+      await data.file.pipe(out);
+
+      await prisma.ticket.create({
+        data: {
+          type: "PAYMENT_RECEIPT",
+          filePath: fileName,
+          userId: request.user.id,
+        },
+      });
+      return { status: "success", message: "فیش ثبت شد" };
+    },
+  );
 }

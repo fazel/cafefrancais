@@ -70,10 +70,16 @@
                         </div>
 
                         <div
-                            class="bg-slate-50 h-40 rounded-2xl mb-6 flex flex-col items-center justify-center border-2 border-dashed border-slate-200 group-hover:border-blue-300 transition-colors">
-                            <span class="text-3xl mb-2">📄</span>
-                            <span class="text-slate-500 text-sm font-bold max-w-full truncate px-4">{{ receipt.filename
-                                }}</span>
+                            class="bg-slate-100 h-40 rounded-2xl mb-6 flex items-center justify-center border-2 border-slate-200 overflow-hidden relative group">
+                            <img :src="'http://localhost:3000/uploads/' + receipt.filename"
+                                class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+                                alt="فیش واریزی" />
+
+                            <a :href="'http://localhost:3000/uploads/' + receipt.filename" target="_blank"
+                                class="absolute inset-0 bg-black/40 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                <span class="text-4xl">🔍</span>
+                                <span class="text-white font-bold text-sm mt-2">مشاهده کامل تصویر</span>
+                            </a>
                         </div>
 
                         <div class="flex space-x-3 space-x-reverse">
@@ -131,15 +137,14 @@
                                     <td class="px-6 py-5 text-sm font-mono text-slate-600">{{ student.phone }}</td>
                                     <td class="px-6 py-5 text-sm text-slate-500 font-bold">{{ student.regDate }}</td>
                                     <td class="px-6 py-5">
-                                        <span :class="[
-                                            'px-3 py-1 rounded-full text-xs font-black inline-flex items-center gap-1.5',
-                                            student.status.includes('تایید') ? 'bg-green-100 text-green-700' :
-                                                student.status.includes('تعیین سطح') ? 'bg-yellow-100 text-yellow-700' : 'bg-slate-100 text-slate-700'
-                                        ]">
-                                            <span
-                                                :class="['w-1.5 h-1.5 rounded-full', student.status.includes('تایید') ? 'bg-green-500' : 'bg-yellow-500']"></span>
-                                            {{ student.status }}
-                                        </span>
+                                        <select @change="changeLevel(student.id, $event.target.value)"
+                                            class="bg-white border border-slate-200 text-slate-700 text-xs font-black rounded-lg px-2 py-1 outline-none focus:border-blue-500">
+                                            <option value="" disabled :selected="!student.level">تعیین سطح</option>
+                                            <option v-for="level in ['A1', 'A2', 'B1', 'B2', 'C1', 'C2']" :key="level"
+                                                :value="level" :selected="student.level === level">
+                                                {{ level }}
+                                            </option>
+                                        </select>
                                     </td>
                                     <td class="px-6 py-5 text-center">
                                         <button
@@ -213,21 +218,54 @@ watch(activeTab, (newTab) => {
     }
 });
 
-// توابع عملیاتی
-const approveReceipt = (id) => {
-    alert('فیش تایید شد! ✅');
-    receipts.value = receipts.value.filter(r => r.id !== id);
-};
+const approveReceipt = async (id) => {
+    try {
+        const token = localStorage.getItem('token');
+        await axios.post('http://localhost:3000/api/admin/update-ticket-status',
+            { ticketId: id, newStatus: 'APPROVED' },
+            { headers: { Authorization: `Bearer ${token}` } }
+        );
 
-const rejectReceipt = (id) => {
-    if (confirm('آیا مطمئن هستید؟ ❌')) {
+        // حذف فیش از لیست فعلی در صفحه (UI Update)
         receipts.value = receipts.value.filter(r => r.id !== id);
+        alert('فیش تایید شد و وضعیت زبان‌آموز تغییر یافت. ✅');
+    } catch (error) {
+        alert('خطا در تایید فیش.');
     }
 };
 
+const rejectReceipt = async (id) => {
+    if (!confirm('آیا از رد کردن این فیش مطمئن هستید؟')) return;
+
+    try {
+        const token = localStorage.getItem('token');
+        await axios.post('http://localhost:3000/api/admin/update-ticket-status',
+            { ticketId: id, newStatus: 'REJECTED' },
+            { headers: { Authorization: `Bearer ${token}` } }
+        );
+
+        receipts.value = receipts.value.filter(r => r.id !== id);
+        alert('فیش رد شد. ❌');
+    } catch (error) {
+        alert('خطا در رد کردن فیش.');
+    }
+};
 const handleLogout = () => {
     localStorage.removeItem('token');
     router.push('/login');
+};
+
+const changeLevel = async (studentId, newLevel) => {
+    try {
+        const token = localStorage.getItem('token');
+        await axios.post('http://localhost:3000/api/admin/update-student-level',
+            { studentId, newLevel },
+            { headers: { Authorization: `Bearer ${token}` } }
+        );
+        alert(`سطح جدید (${newLevel}) با موفقیت ثبت شد. ✅`);
+    } catch (error) {
+        alert('خطا در ثبت سطح آموزشی.');
+    }
 };
 
 // اجرای اولیه

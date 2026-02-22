@@ -1,25 +1,39 @@
 <template>
     <div class="min-h-screen flex items-center justify-center bg-gray-50 font-sans" dir="rtl">
-        <div class="max-w-md w-full bg-white rounded-3xl shadow-lg p-8 border border-gray-100 relative overflow-hidden">
-            <div class="absolute -top-10 -right-10 w-32 h-32 bg-blue-50 rounded-full blur-3xl opacity-60"></div>
+        <div class="max-w-md w-full bg-white rounded-3xl shadow-xl border border-gray-100 relative overflow-hidden">
 
-            <div class="relative z-10">
+            <div class="bg-slate-50 border-b border-gray-100 p-2 flex gap-2">
+                <button @click="loginType = 'STUDENT'"
+                    :class="['flex-1 py-3 text-sm font-bold rounded-2xl transition-all', loginType === 'STUDENT' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400 hover:text-gray-600']">
+                    🎓 زبان‌آموز
+                </button>
+                <button @click="loginType = 'TEACHER'"
+                    :class="['flex-1 py-3 text-sm font-bold rounded-2xl transition-all', loginType === 'TEACHER' ? 'bg-slate-800 text-white shadow-sm' : 'text-gray-400 hover:text-gray-600']">
+                    👨‍🏫 کادر آموزشی
+                </button>
+            </div>
+
+            <div class="p-8 relative z-10">
                 <div class="text-center mb-8">
-                    <span class="text-4xl mb-2 block">🔐</span>
-                    <h2 class="text-2xl font-black text-gray-800">ورود به کافه فرانسوی</h2>
-                    <p class="text-sm text-gray-500 mt-2">برای ورود به پنل، شماره موبایل خود را وارد کنید.</p>
+                    <span class="text-4xl mb-2 block">{{ loginType === 'STUDENT' ? '🇫🇷' : '💼' }}</span>
+                    <h2 class="text-2xl font-black text-gray-800">
+                        {{ loginType === 'STUDENT' ? 'ورود به کافه فرانسوی' : 'پنل مدیریت (مدرس)' }}
+                    </h2>
+                    <p class="text-sm text-gray-500 mt-2">شماره موبایل خود را وارد کنید</p>
                 </div>
 
                 <form @submit.prevent="handleLogin" class="space-y-6">
                     <div>
                         <label class="block text-sm font-bold text-gray-700 mb-2">شماره موبایل</label>
                         <input v-model="form.phoneNumber" type="tel" required
-                            class="w-full px-5 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none transition-colors font-mono text-left"
-                            placeholder="09123456789" dir="ltr" />
+                            :class="['w-full px-5 py-3 border-2 rounded-xl outline-none transition-colors font-mono text-left',
+                                loginType === 'TEACHER' ? 'border-slate-200 focus:border-slate-800' : 'border-gray-200 focus:border-blue-500']" placeholder="09123456789"
+                            dir="ltr" />
                     </div>
 
                     <button type="submit" :disabled="isLoading"
-                        class="w-full bg-gray-900 text-white font-bold py-4 rounded-xl hover:bg-blue-600 transition-all shadow-md disabled:bg-gray-300 flex justify-center items-center gap-2">
+                        :class="['w-full text-white font-bold py-4 rounded-xl transition-all shadow-md disabled:bg-gray-300 flex justify-center items-center gap-2',
+                            loginType === 'TEACHER' ? 'bg-slate-800 hover:bg-slate-900' : 'bg-blue-600 hover:bg-blue-700']">
                         <span v-if="isLoading"
                             class="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
                         <span>{{ isLoading ? 'در حال بررسی...' : 'ورود به سیستم' }}</span>
@@ -31,13 +45,14 @@
                     {{ message }}
                 </p>
 
-                <div class="mt-8 text-center border-t border-gray-100 pt-6">
+                <div v-if="loginType === 'STUDENT'" class="mt-8 text-center border-t border-gray-100 pt-6">
                     <p class="text-sm text-gray-500">
                         حساب کاربری ندارید؟
                         <router-link to="/" class="text-blue-600 font-bold hover:underline">ثبت‌نام کنید</router-link>
                     </p>
                 </div>
             </div>
+
         </div>
     </div>
 </template>
@@ -53,34 +68,40 @@ const isLoading = ref(false);
 const message = ref('');
 const isError = ref(false);
 
+// تغییر حالت بین دانش‌آموز و مدرس
+const loginType = ref('STUDENT');
+
 const handleLogin = async () => {
     try {
         isLoading.value = true;
         isError.value = false;
         message.value = '';
 
-        const response = await axios.post('http://localhost:3000/api/users/login', form.value);
+        // انتخاب مسیر API بر اساس تبِ انتخاب شده
+        const apiUrl = loginType.value === 'STUDENT'
+            ? 'http://localhost:3000/api/users/login'
+            : 'http://localhost:3000/api/users/teacher-login';
 
-        // ۱. ذخیره توکن امنیتی
+        const response = await axios.post(apiUrl, form.value);
+
         localStorage.setItem('token', response.data.token);
-
-        // ۲. ذخیره نام کاربر برای نمایش در داشبورد
-        localStorage.setItem('studentName', response.data.user.firstName);
+        if (response.data.user?.firstName) {
+            localStorage.setItem('studentName', response.data.user.firstName);
+        }
 
         message.value = response.data.message;
 
-        // ۳. هدایت کاربر بر اساس نقش (Role)
         setTimeout(() => {
             if (response.data.user.role === 'ADMIN' || response.data.user.role === 'TEACHER') {
-                router.push('/admin'); // اگر استاد یا ادمین بود بره پنل مدیریت
+                router.push('/admin');
             } else {
-                router.push('/dashboard'); // اگر زبان‌آموز بود بره داشبورد خودش
+                router.push('/dashboard');
             }
         }, 1000);
 
     } catch (error) {
         isError.value = true;
-        message.value = error.response?.data?.message || "خطایی در ارتباط با سرور رخ داد.";
+        message.value = error.response?.data?.message || "خطایی رخ داد. اتصال را بررسی کنید.";
     } finally {
         isLoading.value = false;
     }
