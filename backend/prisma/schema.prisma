@@ -73,16 +73,18 @@ model User {
 }
 
 model EvaluationSlot {
-  id        String   @id @default(uuid())
-  teacherId String
-  studentId String?
+  id        Int      @id @default(autoincrement())
   startTime DateTime
   endTime   DateTime
   isBooked  Boolean  @default(false)
 
-  // روابط
-  teacher User  @relation("TeacherSlots", fields: [teacherId], references: [id])
-  student User? @relation("StudentSlots", fields: [studentId], references: [id])
+  teacherId String
+  teacher   User   @relation("TeacherSlots", fields: [teacherId], references: [id])
+
+  studentId String?
+  student   User?   @relation("StudentSlots", fields: [studentId], references: [id])
+
+  meetingLink String? 
 }
 
 model Class {

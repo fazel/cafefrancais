@@ -31,15 +31,30 @@ const router = createRouter({
   ],
 });
 
-// نگهبان روتر
+// نگهبان هوشمند روتر
 router.beforeEach((to, from, next) => {
-  const token = localStorage.getItem("token");
-
+  const token = localStorage.getItem('token');
+  const role = localStorage.getItem('userRole'); // نقشی که موقع لاگین ذخیره کردیم
+  
+  // ۱. اگر صفحه قفل بود و کاربر توکن نداشت، بفرستش به صفحه لاگین
   if (to.meta.requiresAuth && !token) {
-    next("/"); // اگر دسترسی نداشت، برگردد به صفحه اصلی (لاگین)
-  } else {
-    next();
+    return next('/'); 
   }
-});
+
+  // ۲. اگر زبان‌آموز خواست برود پنل ادمین، پرتش کن به داشبورد خودش!
+  if (to.path === '/admin' && role === 'STUDENT') {
+    alert('شما به این بخش دسترسی ندارید.');
+    return next('/dashboard');
+  }
+
+  // ۳. اگر استاد خواست برود پنل زبان‌آموز، پرتش کن به پنل مدیریت!
+  if ((to.path === '/dashboard' || to.path === '/reserve') && (role === 'TEACHER' || role === 'ADMIN')) {
+    return next('/admin');
+  }
+
+  // در غیر این صورت اجازه عبور بده
+  next(); 
+})
+
 
 export default router;
