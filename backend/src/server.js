@@ -25,7 +25,6 @@ if (!fs.existsSync(uploadDir)) {
 const fastify = Fastify({ logger: true });
 
 // ثبت پلاگین‌ها
-fastify.register(cors, { origin: true });
 fastify.register(multipart);
 fastify.register(fastifyJwt, { secret: "super-secret-cafe-key-2026" });
 fastify.register(fastifyStatic, {
@@ -45,6 +44,14 @@ fastify.decorate("authenticate", async function (request, reply) {
 // ثبت روت‌های ماژولار
 fastify.register(userRoutes, { prefix: "/api/users" });
 fastify.register(slotRoutes, { prefix: "/api/slots" });
+
+// ثبت پلاگین‌ها
+// تغییر تنظیمات CORS برای اجازه دادن به متدهای DELETE و PUT
+fastify.register(cors, {
+  origin: true, // اجازه به همه دامنه‌ها (یا آدرس فرانت‌اِند شما)
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"], // <--- این خط حیاتی است!
+  allowedHeaders: ["Content-Type", "Authorization"], // هدرهای مجاز
+});
 
 // --- روت‌های مستقیم ادمین ---
 
@@ -149,4 +156,5 @@ const start = async () => {
     process.exit(1);
   }
 };
+
 start();

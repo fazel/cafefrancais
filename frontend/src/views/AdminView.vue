@@ -48,6 +48,7 @@
                     <span>📅</span> امروز: {{ new Date().toLocaleDateString('fa-IR') }}
                 </div>
             </header>
+
             <section v-if="activeTab === 'receipts'">
                 <div v-if="isLoadingReceipts" class="flex flex-col items-center justify-center py-20">
                     <div class="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-4">
@@ -162,35 +163,43 @@
             </section>
 
             <section v-if="activeTab === 'slots'">
-                <div class="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 mb-8">
+                <div class="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 mb-8 transition-all"
+                    :class="isEditingMode ? 'border-yellow-400 ring-4 ring-yellow-50' : ''">
                     <h3 class="text-xl font-black text-gray-800 mb-4 flex items-center gap-2">
-                        <span class="text-2xl">🗓️</span> باز کردن ظرفیت تعیین سطح جدید
+                        <span class="text-2xl">{{ isEditingMode ? '✏️' : '🗓️' }}</span>
+                        {{ isEditingMode ? 'ویرایش ظرفیت انتخاب شده' : 'باز کردن ظرفیت تعیین سطح جدید' }}
                     </h3>
-                    <form @submit.prevent="createNewSlot"
+
+                    <form @submit.prevent="submitSlot"
                         class="flex flex-col md:flex-row gap-4 items-end bg-blue-50/50 p-6 rounded-2xl border border-blue-100">
                         <div class="flex-1 w-full">
-                            <label class="block text-sm font-bold text-gray-700 mb-2">زمان شروع جلسه</label>
-                            <input v-model="newSlot.startTime" type="datetime-local" required
+                            <label class="block text-sm font-bold text-gray-700 mb-2">زمان شروع</label>
+                            <input v-model="slotForm.startTime" type="datetime-local" required
                                 class="w-full px-4 py-3 border border-gray-300 rounded-xl outline-none focus:border-blue-500 font-mono text-sm"
                                 dir="ltr" />
                         </div>
                         <div class="flex-1 w-full">
-                            <label class="block text-sm font-bold text-gray-700 mb-2">زمان پایان جلسه</label>
-                            <input v-model="newSlot.endTime" type="datetime-local" required
+                            <label class="block text-sm font-bold text-gray-700 mb-2">زمان پایان</label>
+                            <input v-model="slotForm.endTime" type="datetime-local" required
                                 class="w-full px-4 py-3 border border-gray-300 rounded-xl outline-none focus:border-blue-500 font-mono text-sm"
                                 dir="ltr" />
                         </div>
-
                         <div class="flex-1 w-full">
-                            <label class="block text-sm font-bold text-gray-700 mb-2">لینک کلاس آنلاین</label>
-                            <input v-model="newSlot.meetingLink" type="url" placeholder="https://meet.google.com/..."
+                            <label class="block text-sm font-bold text-gray-700 mb-2">لینک کلاس</label>
+                            <input v-model="slotForm.meetingLink" type="url" placeholder="https://..."
                                 class="w-full px-4 py-3 border border-gray-300 rounded-xl outline-none focus:border-blue-500 font-mono text-sm text-left"
                                 dir="ltr" />
                         </div>
-                        <button type="submit" :disabled="isCreatingSlot"
-                            class="w-full md:w-auto bg-blue-600 text-white font-bold py-3 px-8 rounded-xl hover:bg-blue-700 transition shadow-md disabled:bg-gray-400">
-                            {{ isCreatingSlot ? 'در حال ثبت...' : '+ ایجاد ظرفیت' }}
-                        </button>
+
+                        <div class="flex gap-2 w-full md:w-auto">
+                            <button v-if="isEditingMode" type="button" @click="cancelEdit"
+                                class="bg-gray-200 text-gray-600 font-bold py-3 px-4 rounded-xl hover:bg-gray-300 transition">انصراف</button>
+                            <button type="submit" :disabled="isSubmitting"
+                                :class="isEditingMode ? 'bg-yellow-500 hover:bg-yellow-600' : 'bg-blue-600 hover:bg-blue-700'"
+                                class="flex-1 text-white font-bold py-3 px-8 rounded-xl transition shadow-md disabled:bg-gray-400">
+                                {{ isSubmitting ? '...' : (isEditingMode ? 'ذخیره تغییرات' : '+ ایجاد ظرفیت') }}
+                            </button>
+                        </div>
                     </form>
                 </div>
 
@@ -219,22 +228,20 @@
                                         dir="ltr">
                                         {{ new Date(slot.startTime).toLocaleTimeString('fa-IR', {
                                             hour: '2-digit',
-                                            minute: '2-digit'
-                                        }) }}
+                                        minute:'2-digit'}) }}
                                     </span>
                                 </div>
                                 <p class="text-sm font-bold text-gray-800 mb-1 border-b border-gray-200/50 pb-2">
                                     📅 {{ new Date(slot.startTime).toLocaleDateString('fa-IR', {
                                         weekday: 'long', year:
-                                            'numeric', month: 'long', day: 'numeric'
-                                    }) }}
+                                            'numeric', month: 'long', day: 'numeric' }) }}
                                 </p>
 
                                 <div v-if="slot.isBooked" class="mt-3">
                                     <p class="text-xs text-gray-500 mb-1">زبان‌آموز:</p>
                                     <p class="font-black text-gray-800 text-lg flex items-center gap-2">
                                         <span>👤</span> {{ slot.student?.firstName || 'بدون نام' }} {{
-                                            slot.student?.lastName || '' }}
+                                        slot.student?.lastName || '' }}
                                     </p>
                                     <p class="text-xs text-gray-500 mt-1 font-mono" dir="ltr">{{
                                         slot.student?.phoneNumber }}</p>
@@ -242,26 +249,97 @@
                                 <p v-else class="text-sm text-gray-400 mt-4 italic text-center">
                                     منتظر رزرو زبان‌آموز...
                                 </p>
+
+                                <div class="mt-4 pt-4 border-t border-gray-100 flex justify-end gap-2">
+                                    <button @click="editSlot(slot)"
+                                        class="text-blue-500 bg-blue-50 p-2 rounded-lg hover:bg-blue-100 transition"
+                                        title="ویرایش">
+                                        ✏️
+                                    </button>
+                                    <button @click="deleteSlot(slot.id)"
+                                        class="text-red-500 bg-red-50 p-2 rounded-lg hover:bg-red-100 transition"
+                                        title="حذف">
+                                        🗑️
+                                    </button>
+                                </div>
+
+                                <div v-if="slot.isBooked && !slot.isCompleted" class="mt-2">
+                                    <button v-if="isClassStarted(slot.startTime)" @click="openGradingModal(slot)"
+                                        class="w-full bg-purple-600 text-white py-2 rounded-lg font-bold text-sm hover:bg-purple-700 transition shadow-md flex justify-center items-center gap-2">
+                                        <span>📝</span> ثبت نتیجه آزمون
+                                    </button>
+                                    <button v-else disabled
+                                        class="w-full bg-gray-100 text-gray-400 py-2 rounded-lg font-bold text-sm border border-gray-200 cursor-not-allowed flex justify-center items-center gap-2">
+                                        <span>⏳</span> هنوز شروع نشده
+                                    </button>
+                                </div>
+
+                                <div v-if="slot.isCompleted"
+                                    class="w-full mt-2 bg-green-100 text-green-700 py-2 rounded-lg font-bold text-xs text-center border border-green-200">
+                                    نمره ثبت شد: {{ slot.score }} ✅
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
             </section>
-
         </main>
+    </div>
+
+    <div v-if="showGradingModal"
+        class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-3xl shadow-2xl w-full max-w-md p-6 border border-gray-200">
+            <h3 class="text-xl font-black text-gray-800 mb-4">ثبت نتیجه تعیین سطح</h3>
+            <p class="text-sm text-gray-500 mb-6">برای دانش‌آموز: <span class="font-bold text-blue-600">{{
+                    selectedStudentName }}</span></p>
+
+            <form @submit.prevent="submitGrade">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1">سطح تعیین شده</label>
+                        <select v-model="gradeForm.assignedLevel"
+                            class="w-full p-3 rounded-xl border bg-gray-50 font-mono text-sm" required>
+                            <option value="A1">A1 - مقدماتی</option>
+                            <option value="A2">A2 - متوسطه پایین</option>
+                            <option value="B1">B1 - متوسطه</option>
+                            <option value="B2">B2 - متوسطه بالا</option>
+                            <option value="C1">C1 - پیشرفته</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1">نمره (از ۱۰۰)</label>
+                        <input v-model="gradeForm.score" type="number" min="0" max="100"
+                            class="w-full p-3 rounded-xl border bg-gray-50 font-mono text-sm" required />
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1">توضیحات و فیدبک</label>
+                        <textarea v-model="gradeForm.feedback" rows="3"
+                            class="w-full p-3 rounded-xl border bg-gray-50 text-sm"
+                            placeholder="نقاط قوت و ضعف..."></textarea>
+                    </div>
+                </div>
+
+                <div class="flex gap-3 mt-6">
+                    <button type="button" @click="showGradingModal = false"
+                        class="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold hover:bg-gray-200">انصراف</button>
+                    <button type="submit"
+                        class="flex-1 py-3 bg-purple-600 text-white rounded-xl font-bold hover:bg-purple-700 shadow-lg shadow-purple-200">ثبت
+                        نهایی</button>
+                </div>
+            </form>
+        </div>
     </div>
 </template>
 
 <script setup>
+import { ref, onMounted, watch, computed } from 'vue';
 import axios from 'axios';
 import { useRouter } from 'vue-router';
-import { ref, onMounted, watch, computed } from 'vue';
 
 const router = useRouter();
 
-// --- مدیریت تب‌ها ---
+// --- مدیریت تب‌ها و هدر ---
 const activeTab = ref('receipts');
-
 const pageTitle = computed(() => {
     if (activeTab.value === 'receipts') return 'مدیریت پرداخت‌ها';
     if (activeTab.value === 'students') return 'دانش‌آموزان کافه فرانسوی';
@@ -276,13 +354,23 @@ const isLoadingReceipts = ref(false);
 const students = ref([]);
 const isLoadingStudents = ref(false);
 
-// --- متغیرهای بخش اسلات‌ها ---
-const newSlot = ref({ startTime: '', endTime: '', meetingLink: '' });
-const isCreatingSlot = ref(false);
+// --- متغیرهای بخش اسلات‌ها (تقویم) ---
+const slotForm = ref({ startTime: '', endTime: '', meetingLink: '' });
+const isSubmitting = ref(false);
+const isEditingMode = ref(false);
+const editingId = ref(null);
 const mySlots = ref([]);
 
+// --- متغیرهای مودال نمره دهی ---
+const showGradingModal = ref(false);
+const selectedStudentName = ref('');
+const gradeForm = ref({ slotId: null, score: '', feedback: '', assignedLevel: 'A1' });
 
-// --- توابع دریافت اطلاعات ---
+
+// ==========================================
+// توابع دریافت اطلاعات (GET)
+// ==========================================
+
 const fetchReceipts = async () => {
     try {
         isLoadingReceipts.value = true;
@@ -325,14 +413,18 @@ const fetchMySlots = async () => {
     }
 };
 
-// --- واچر برای لود کردن دیتا هنگام تغییر تب ---
+// واچر برای لود کردن دیتا هنگام تغییر تب
 watch(activeTab, (newTab) => {
     if (newTab === 'students' && students.value.length === 0) fetchStudents();
     if (newTab === 'receipts') fetchReceipts();
     if (newTab === 'slots') fetchMySlots();
 });
 
-// --- عملیات روی فیش‌ها ---
+
+// ==========================================
+// عملیات روی فیش‌ها
+// ==========================================
+
 const approveReceipt = async (id) => {
     try {
         const token = localStorage.getItem('token');
@@ -362,7 +454,10 @@ const rejectReceipt = async (id) => {
     }
 };
 
-// --- عملیات روی دانش‌آموزان ---
+// ==========================================
+// عملیات روی دانش‌آموزان
+// ==========================================
+
 const changeLevel = async (studentId, newLevel) => {
     try {
         const token = localStorage.getItem('token');
@@ -376,21 +471,102 @@ const changeLevel = async (studentId, newLevel) => {
     }
 };
 
-// --- عملیات روی اسلات‌ها ---
-const createNewSlot = async () => {
+// ==========================================
+// عملیات روی اسلات‌ها (تقویم)
+// ==========================================
+
+// آماده‌سازی فرم برای ویرایش
+const editSlot = (slot) => {
+    isEditingMode.value = true;
+    editingId.value = slot.id;
+    // تبدیل تاریخ به فرمت مناسب اینپوت datetime-local (YYYY-MM-DDTHH:mm)
+    slotForm.value = {
+        startTime: new Date(slot.startTime).toISOString().slice(0, 16),
+        endTime: new Date(slot.endTime).toISOString().slice(0, 16),
+        meetingLink: slot.meetingLink || ''
+    };
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+};
+
+// انصراف از ویرایش
+const cancelEdit = () => {
+    isEditingMode.value = false;
+    editingId.value = null;
+    slotForm.value = { startTime: '', endTime: '', meetingLink: '' };
+};
+
+// ثبت نهایی (ایجاد یا آپدیت)
+const submitSlot = async () => {
     try {
-        isCreatingSlot.value = true;
+        isSubmitting.value = true;
         const token = localStorage.getItem('token');
-        await axios.post('http://localhost:3000/api/slots/create', newSlot.value, {
-            headers: { Authorization: `Bearer ${token}` }
-        });
-        alert('ظرفیت جدید با موفقیت ایجاد شد! ✅');
-        newSlot.value = { startTime: '', endTime: '', meetingLink: '' };
+
+        if (isEditingMode.value) {
+            // آپدیت
+            await axios.put(`http://localhost:3000/api/slots/update/${editingId.value}`, slotForm.value, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            alert('تایم با موفقیت ویرایش شد ✅');
+        } else {
+            // ایجاد جدید
+            await axios.post('http://localhost:3000/api/slots/create', slotForm.value, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            alert('ظرفیت جدید ساخته شد ✅');
+        }
+
+        cancelEdit(); // ریست کردن فرم
         fetchMySlots(); // آپدیت لیست
     } catch (error) {
-        alert(error.response?.data?.message || 'خطا در ایجاد ظرفیت.');
+        alert(error.response?.data?.message || 'خطا در عملیات.');
     } finally {
-        isCreatingSlot.value = false;
+        isSubmitting.value = false;
+    }
+};
+
+// حذف اسلات
+const deleteSlot = async (id) => {
+    if (!confirm("آیا از حذف این تایم مطمئن هستید؟")) return;
+
+    try {
+        const token = localStorage.getItem('token');
+        await axios.delete(`http://localhost:3000/api/slots/delete/${id}`, {
+            headers: { Authorization: `Bearer ${token}` }
+        });
+        fetchMySlots();
+        alert("تایم حذف شد 🗑️");
+    } catch (error) {
+        alert("خطا در حذف. ممکن است این تایم رزرو شده باشد.");
+    }
+};
+
+// ==========================================
+// عملیات ثبت نمره (Grading)
+// ==========================================
+
+// چک کردن اینکه آیا زمان کلاس رسیده است؟
+const isClassStarted = (startTime) => {
+    return new Date() >= new Date(startTime);
+};
+
+const openGradingModal = (slot) => {
+    gradeForm.value.slotId = slot.id;
+    selectedStudentName.value = slot.student ? `${slot.student.firstName} ${slot.student.lastName}` : 'نامشخص';
+    showGradingModal.value = true;
+};
+
+const submitGrade = async () => {
+    try {
+        const token = localStorage.getItem('token');
+        await axios.post('http://localhost:3000/api/slots/submit-result', gradeForm.value, {
+            headers: { Authorization: `Bearer ${token}` }
+        });
+
+        alert('نتیجه با موفقیت ثبت شد! 🎉');
+        showGradingModal.value = false;
+        fetchMySlots();
+    } catch (error) {
+        alert(error.response?.data?.message || 'خطا در ثبت نمره.');
     }
 };
 
@@ -399,7 +575,7 @@ const handleLogout = () => {
     router.push('/');
 };
 
-// --- شروع ---
+// اجرای اولیه
 onMounted(() => {
     fetchReceipts();
 });

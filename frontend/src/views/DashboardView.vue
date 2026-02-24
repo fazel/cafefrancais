@@ -119,7 +119,7 @@
                                     <span class="text-xs text-green-600 font-bold animate-pulse">🔴 در انتظار
                                         شروع...</span>
                                 </div>
-                                <h4 class="text-lg font-black text-gray-800 mb-1">جلسه تعیین سطح شفاهی</h4>
+                                <h4 class="text-lg font-black text-gray-800 mb-1">جلسه تعیین سطح شفاهی (Oral Test)</h4>
                                 <p class="text-sm text-gray-600 font-bold mb-4">
                                     📅 {{ new Date(bookedSlot.startTime).toLocaleDateString('fa-IR', {
                                         weekday: 'long',
@@ -132,11 +132,11 @@
                                 </p>
 
                                 <a :href="bookedSlot.meetingLink || '#'" target="_blank"
-                                    :class="!bookedSlot.meetingLink ? 'opacity-50 cursor-not-allowed' : 'hover:bg-green-700'"
-                                    class="w-full flex items-center justify-center gap-2 bg-green-600 text-white font-bold py-3 rounded-xl transition shadow-lg shadow-green-200">
+                                    :class="!bookedSlot.meetingLink ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-700'"
+                                    class="w-full flex items-center justify-center gap-2 bg-blue-600 text-white font-bold py-3 rounded-xl transition shadow-lg shadow-blue-200">
                                     <span>🎥</span>
-                                    <span>{{ bookedSlot.meetingLink ? 'ورود به کلاس آنلاین' : 'لینک هنوز ثبت نشده'
-                                        }}</span>
+                                    <span>{{ bookedSlot.meetingLink ? 'ورود به جلسه آزمون' : 'لینک آزمون هنوز ثبت نشده'
+                                    }}</span>
                                 </a>
                                 <p class="text-[10px] text-center text-gray-400 mt-2">لطفاً ۵ دقیقه قبل از شروع وارد
                                     شوید.</p>
@@ -145,37 +145,79 @@
                     </div>
                 </section>
 
-                <section class="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 relative overflow-hidden">
-                    <div class="relative z-10">
-                        <h3 class="text-xl font-black text-gray-800 mb-2 flex items-center gap-2">
-                            <span class="text-2xl">💳</span> پرداخت شهریه
-                        </h3>
-                        <p class="text-sm text-gray-500 mb-6 leading-relaxed">پس از تعیین سطح، فیش ترم جدید را اینجا
-                            آپلود کنید.</p>
+                <section
+                    class="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 flex flex-col justify-between relative overflow-hidden transition-all duration-500 hover:shadow-md">
+                    <div v-if="bookedSlot" :class="bookedSlot.isCompleted ? 'bg-purple-500' : 'bg-green-500'"
+                        class="absolute top-0 left-0 w-2 h-full"></div>
 
-                        <div class="space-y-4">
-                            <div class="border-2 border-dashed border-gray-200 rounded-2xl p-8 text-center hover:border-blue-400 transition-all cursor-pointer bg-gray-50/50 group"
-                                @click="$refs.fileInput.click()">
-                                <input type="file" ref="fileInput" @change="onFileSelected" accept="image/*"
-                                    class="hidden" />
-                                <div v-if="!selectedFile" class="space-y-2">
-                                    <span class="text-4xl block group-hover:scale-110 transition-transform">📸</span>
-                                    <p class="text-sm text-gray-400 font-bold">انتخاب تصویر فیش</p>
-                                </div>
-                                <div v-else class="flex items-center justify-center gap-3 text-blue-600 font-bold">
-                                    <span class="text-xl">📄</span>
-                                    <span class="text-sm">{{ selectedFile.name }}</span>
+                    <div>
+                        <h3 class="text-xl font-black text-gray-800 mb-4 flex items-center gap-2">
+                            <span class="text-2xl">{{ bookedSlot?.isCompleted ? '🏆' : '🎓' }}</span>
+                            {{ bookedSlot?.isCompleted ? 'نتیجه تعیین سطح شما' : 'وضعیت کلاسی' }}
+                        </h3>
+
+                        <div v-if="!bookedSlot">
+                            <p class="text-sm text-gray-500 mb-8 leading-relaxed">برای شروع یادگیری، ابتدا باید تعیین
+                                سطح شوید.</p>
+                            <router-link to="/reserve"
+                                class="w-full block bg-blue-50 text-blue-700 font-bold py-4 rounded-2xl text-center hover:bg-blue-100 transition-all border border-blue-100">
+                                رزرو تایم تعیین سطح (رایگان)
+                            </router-link>
+                        </div>
+
+                        <div v-else-if="bookedSlot.isCompleted" class="animate-in fade-in zoom-in duration-500">
+                            <div class="bg-purple-50 border border-purple-100 rounded-2xl p-6 text-center mb-6">
+                                <p class="text-xs text-purple-600 font-bold mb-2 uppercase tracking-widest">سطح تعیین
+                                    شده</p>
+                                <p class="text-5xl font-black text-purple-800 mb-2">{{ userLevel }}</p>
+                                <div
+                                    class="inline-block bg-white px-3 py-1 rounded-full text-xs font-bold text-gray-500 border border-purple-100 shadow-sm">
+                                    نمره آزمون: {{ bookedSlot.score || '---' }} / ۱۰۰
                                 </div>
                             </div>
 
-                            <button @click="uploadReceipt" :disabled="!selectedFile || isUploading"
-                                class="w-full bg-gray-900 text-white font-bold py-4 rounded-2xl hover:bg-blue-600 transition-all shadow-lg disabled:bg-gray-200 flex items-center justify-center gap-2">
-                                <span v-if="isUploading"
-                                    class="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                                <span>{{ isUploading ? 'در حال ارسال...' : 'تایید و ارسال نهایی' }}</span>
-                            </button>
-                            <p v-if="uploadMessage" class="text-center text-sm font-bold mt-2"
-                                :class="isUploadError ? 'text-red-500' : 'text-green-600'">{{ uploadMessage }}</p>
+                            <div class="bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                                <p class="text-xs text-gray-400 font-bold mb-1">نظر استاد:</p>
+                                <p class="text-sm text-gray-700 leading-relaxed italic">
+                                    "{{ bookedSlot.feedback || 'توضیحات خاصی ثبت نشده است.' }}"
+                                </p>
+                            </div>
+
+                            <p
+                                class="text-xs text-center text-green-600 font-bold mt-4 flex items-center justify-center gap-1">
+                                <span>✅</span> تعیین سطح با موفقیت انجام شد.
+                            </p>
+                        </div>
+
+                        <div v-else>
+                            <p class="text-sm text-gray-500 mb-6 leading-relaxed">شما یک کلاس فعال دارید!</p>
+
+                            <div class="bg-green-50 border border-green-100 rounded-2xl p-6 mb-6">
+                                <div class="flex justify-between items-start mb-4">
+                                    <span
+                                        class="bg-white text-green-700 text-xs font-black px-3 py-1 rounded-lg border border-green-100">جلسه
+                                        آنلاین</span>
+                                    <span class="text-xs text-green-600 font-bold animate-pulse">🔴 در انتظار
+                                        شروع...</span>
+                                </div>
+                                <h4 class="text-lg font-black text-gray-800 mb-1">جلسه تعیین سطح شفاهی</h4>
+                                <p class="text-sm text-gray-600 font-bold mb-4">
+                                    📅 {{ new Date(bookedSlot.startTime).toLocaleDateString('fa-IR', {
+                                        weekday: 'long',
+                                    day: 'numeric', month: 'long' }) }}
+                                    - ساعت {{ new Date(bookedSlot.startTime).toLocaleTimeString('fa-IR', {
+                                        hour:
+                                    '2-digit', minute: '2-digit' }) }}
+                                </p>
+
+                                <a :href="bookedSlot.meetingLink || '#'" target="_blank"
+                                    :class="!bookedSlot.meetingLink ? 'opacity-50 cursor-not-allowed' : 'hover:bg-green-700'"
+                                    class="w-full flex items-center justify-center gap-2 bg-green-600 text-white font-bold py-3 rounded-xl transition shadow-lg shadow-green-200">
+                                    <span>🎥</span>
+                                    <span>{{ bookedSlot.meetingLink ? 'ورود به جلسه آزمون' : 'لینک هنوز ثبت نشده'
+                                        }}</span>
+                                </a>
+                            </div>
                         </div>
                     </div>
                 </section>

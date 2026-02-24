@@ -98,4 +98,126 @@ export default async function slotRoutes(fastify, options) {
       }
     },
   );
+
+  // ۵. مدرس: ویرایش یک اسلات (تغییر ساعت یا لینک)
+  fastify.put(
+    "/update/:id",
+    { onRequest: [fastify.authenticate] },
+    async (request, reply) => {
+      const { id } = request.params;
+      const { startTime, endTime, meetingLink } = request.body;
+
+      try {
+        // چک کنیم که این اسلات مال خود مدرس باشد
+        const slot = await prisma.evaluationSlot.findUnique({
+          where: { id: Number(id) },
+        });
+        if (!slot || slot.teacherId !== request.user.id) {
+          return reply.status(403).send({ message: "دسترسی غیرمجاز." });
+        }
+
+        const updatedSlot = await prisma.evaluationSlot.update({
+          where: { id: Number(id) },
+          data: {
+            startTime: new Date(startTime),
+            endTime: new Date(endTime),
+            meetingLink: meetingLink,
+          },
+        });
+        return reply.send({
+          status: "success",
+          message: "تایم با موفقیت ویرایش شد.",
+          slot: updatedSlot,
+        });
+      } catch (error) {
+        return reply.status(500).send({ message: "خطا در ویرایش." });
+      }
+    },
+  );
+
+  // ۶. مدرس: حذف یک اسلات
+  fastify.delete(
+    "/delete/:id",
+    { onRequest: [fastify.authenticate] },
+    async (request, reply) => {
+      const { id } = request.params;
+      try {
+        // چک کنیم که اسلات مال خود مدرس باشد
+        const slot = await prisma.evaluationSlot.findUnique({
+          where: { id: Number(id) },
+        });
+        if (!slot || slot.teacherId !== request.user.id) {
+          return reply.status(403).send({ message: "دسترسی غیرمجاز." });
+        }
+
+        await prisma.evaluationSlot.delete({ where: { id: Number(id) } });
+        return reply.send({ status: "success", message: "تایم حذف شد." });
+      } catch (error) {
+        return reply
+          .status(500)
+          .send({ message: "خطا در حذف (شاید رزرو شده باشد)." });
+      }
+    },
+  );
+
+  // ۷. مدرس: ثبت نتیجه آزمون (نمره دهی)
+  // ۷. مدرس: ثبت نتیجه آزمون
+  fastify.post(
+    "/submit-result",
+    { onRequest: [fastify.authenticate] },
+    async (request, reply) => {
+      const { slotId, score, feedback, assignedLevel } = request.body;
+
+      try {
+        // اول اسلات را از دیتابیس می‌گیریم تا زمانش را چک کنیم
+        const slot = await prisma.evaluationSlot.findUnique({
+          where: { id: Number(slotId) },
+        });
+
+        if (!slot) {
+          return reply.status(404).send({ message: "کلاسی یافت نشد." });
+        }
+
+        // --- چک کردن زمان (منطق جدید) ---
+        const now = new Date();
+        const classTime = new Date(slot.startTime);
+
+        if (now < classTime) {
+          return reply
+            .status(400)
+            .send({
+              message:
+                "هنوز زمان کلاس فرا نرسیده است! نمی‌توانید نمره ثبت کنید. ⏳",
+            });
+        }
+        // --------------------------------
+
+        // ادامه مراحل ثبت نمره (کد قبلی)...
+        const updatedSlot = await prisma.evaluationSlot.update({
+          where: { id: Number(slotId) },
+          data: {
+            isCompleted: true,
+            score: Number(score),
+            feedback: feedback,
+          },
+          include: { student: true },
+        });
+
+        if (updatedSlot.studentId && assignedLevel) {
+          await prisma.user.update({
+            where: { id: updatedSlot.studentId },
+            data: { frenchLevel: assignedLevel },
+          });
+        }
+
+        return reply.send({
+          status: "success",
+          message: "نتیجه آزمون با موفقیت ثبت شد! 📝",
+        });
+      } catch (error) {
+        fastify.log.error(error);
+        return reply.status(500).send({ message: "خطا در ثبت نتیجه." });
+      }
+    },
+  );
 }

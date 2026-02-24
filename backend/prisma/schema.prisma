@@ -84,7 +84,12 @@ model EvaluationSlot {
   studentId String?
   student   User?   @relation("StudentSlots", fields: [studentId], references: [id])
 
-  meetingLink String? 
+  meetingLink String? // لینک جلسه
+
+  // --- فیلدهای جدید برای نتیجه آزمون ---
+  isCompleted Boolean @default(false) // آیا آزمون برگزار شد؟
+  score       Int? // نمره (مثلاً ۸۵)
+  feedback    String? // نظر استاد
 }
 
 model Class {
