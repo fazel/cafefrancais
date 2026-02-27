@@ -86,6 +86,7 @@ export default async function userRoutes(fastify, options) {
   });
 
   // ۴. دریافت اطلاعات پروفایل (فیکس شده)
+  // دریافت پروفایل کاربر فعلی (همراه با کلاس‌های رزرو شده‌اش)
   fastify.get(
     "/me",
     { onRequest: [fastify.authenticate] },
@@ -93,15 +94,29 @@ export default async function userRoutes(fastify, options) {
       try {
         const user = await prisma.user.findUnique({
           where: { id: request.user.id },
-          include: { studentSlots: { where: { isBooked: true } } },
+          include: {
+            studentSlots: {
+              orderBy: { startTime: "desc" }, // 👈 اصلاح شد: مرتب‌سازی بر اساس زمان شروع کلاس
+            },
+          },
         });
-        return reply.send({ user });
-      } catch (err) {
-        return reply.status(500).send({ message: "خطا در دریافت پروفایل" });
+
+        if (!user) {
+          return reply.status(404).send({ message: "کاربری یافت نشد." });
+        }
+
+        // برای امنیت، اگر فیلد پسورد داری آن را به فرانت‌اِند نمی‌فرستیم
+        // const { password, ...safeUser } = user;
+
+        return reply.send({ user: user }); // اگر پسورد را جدا کردی، safeUser را بفرست
+      } catch (error) {
+        fastify.log.error("خطا در روت /me:", error);
+        return reply
+          .status(500)
+          .send({ message: "خطای سرور در دریافت اطلاعات" });
       }
     },
   );
-
   // ۵. روت آپلود فیش (منتقل شده به اینجا برای نظم بیشتر)
   fastify.post(
     "/upload-receipt",

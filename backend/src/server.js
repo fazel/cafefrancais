@@ -10,6 +10,7 @@ import { fileURLToPath } from "url";
 import { PrismaClient } from "@prisma/client";
 import userRoutes from "./routes/userRoutes.js";
 import slotRoutes from "./routes/slotRoutes.js";
+import adminRoutes from "./routes/adminRoutes.js";
 
 dotenv.config();
 
@@ -32,6 +33,13 @@ fastify.register(fastifyStatic, {
   prefix: "/uploads/",
 });
 
+// تغییر تنظیمات CORS
+fastify.register(cors, {
+  origin: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+});
+
 // گارد امنیتی (Authentication)
 fastify.decorate("authenticate", async function (request, reply) {
   try {
@@ -41,110 +49,10 @@ fastify.decorate("authenticate", async function (request, reply) {
   }
 });
 
-// ثبت روت‌های ماژولار
+// ثبت روت‌های ماژولار (همه درخواست‌ها از اینجا به فایل‌های مربوطه هدایت می‌شوند)
 fastify.register(userRoutes, { prefix: "/api/users" });
 fastify.register(slotRoutes, { prefix: "/api/slots" });
-
-// ثبت پلاگین‌ها
-// تغییر تنظیمات CORS برای اجازه دادن به متدهای DELETE و PUT
-fastify.register(cors, {
-  origin: true, // اجازه به همه دامنه‌ها (یا آدرس فرانت‌اِند شما)
-  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"], // <--- این خط حیاتی است!
-  allowedHeaders: ["Content-Type", "Authorization"], // هدرهای مجاز
-});
-
-// --- روت‌های مستقیم ادمین ---
-
-// ۱. لیست فیش‌های واریزی برای ادمین
-fastify.get(
-  "/api/admin/receipts",
-  { onRequest: [fastify.authenticate] },
-  async (request, reply) => {
-    try {
-      const tickets = await prisma.ticket.findMany({
-        where: { type: "PAYMENT_RECEIPT", status: "PENDING" },
-        include: { user: true },
-        orderBy: { createdAt: "desc" },
-      });
-      const receipts = tickets.map((t) => ({
-        id: t.id,
-        studentName: `${t.user.firstName || ""} ${t.user.lastName || ""}`,
-        filename: t.filePath,
-        uploadDate: new Date(t.createdAt).toLocaleDateString("fa-IR"),
-        status: t.status,
-      }));
-      return reply.send({ receipts });
-    } catch (err) {
-      return reply.status(500).send({ message: "خطا در دریافت فیش‌ها" });
-    }
-  },
-);
-
-// ۲. لیست تمام زبان‌آموزان برای ادمین
-fastify.get(
-  "/api/admin/students",
-  { onRequest: [fastify.authenticate] },
-  async (request, reply) => {
-    try {
-      const studentsData = await prisma.user.findMany({
-        where: { role: "STUDENT" },
-        include: { studentSlots: true },
-        orderBy: { createdAt: "desc" },
-      });
-      const students = studentsData.map((s) => ({
-        id: s.id,
-        firstName: s.firstName || "کاربر",
-        lastName: s.lastName || "بدون نام",
-        phone: s.phoneNumber,
-        regDate: new Date(s.createdAt).toLocaleDateString("fa-IR"),
-        status:
-          s.studentSlots && s.studentSlots.length > 0
-            ? "رزرو شده"
-            : "در انتظار تعیین سطح",
-        level: s.frenchLevel,
-      }));
-      return reply.send({ students });
-    } catch (err) {
-      return reply.status(500).send({ message: "خطا در دریافت لیست" });
-    }
-  },
-);
-
-// ۳. تایید یا رد فیش
-fastify.post(
-  "/api/admin/update-ticket-status",
-  { onRequest: [fastify.authenticate] },
-  async (request, reply) => {
-    const { ticketId, newStatus } = request.body;
-    try {
-      await prisma.ticket.update({
-        where: { id: ticketId },
-        data: { status: newStatus },
-      });
-      return reply.send({ status: "success", message: "تغییر وضعیت انجام شد" });
-    } catch (err) {
-      return reply.status(500).send({ message: "خطا در آپدیت تیکت" });
-    }
-  },
-);
-
-// ۴. آپدیت سطح آموزشی
-fastify.post(
-  "/api/admin/update-student-level",
-  { onRequest: [fastify.authenticate] },
-  async (request, reply) => {
-    const { studentId, newLevel } = request.body;
-    try {
-      await prisma.user.update({
-        where: { id: studentId },
-        data: { frenchLevel: newLevel },
-      });
-      return reply.send({ status: "success", message: "سطح آپدیت شد" });
-    } catch (err) {
-      return reply.status(500).send({ message: "خطا در آپدیت سطح" });
-    }
-  },
-);
+fastify.register(adminRoutes, { prefix: "/api/admin" });
 
 // اجرای سرور
 const start = async () => {
